@@ -1,0 +1,206 @@
+openapi: 3.1.0
+info:
+  title: Lyric Meaning Explanation API
+  description: Lyric Meaning Explanation API provides explanations for song lyrics.
+  version: 1.0.0
+servers:
+  - url: 'http://localhost:3000/v1/api'
+paths:
+  /users/register:
+    post:
+      summary: for use registration
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserRegistration"
+      responses:
+        "201":
+          description: successful registration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+  /users/login:
+    post:
+      summary: for use login
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserLogin"
+      responses:
+        "200":
+          description: successful login
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+  /users/playlist:
+    post:
+      summary: create user playlist
+      tags:
+        - Playlists
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlaylistRequest"
+      responses:
+        "200":
+          description: successful playlist creation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaylistCreatedResponse"
+    get:
+      summary: get all user playlists
+      tags:
+        - Playlists
+      responses:
+        "200":
+          description: successful playlist creation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaylistAllResponse"
+  /users/playlist/{id}/songs:
+    post:
+      summary: add song to user playlist
+      tags:
+        - Playlists
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SongRequest"
+      responses:
+        "201":
+          description: successful song addition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SongAddedResponse"
+    get:
+      summary: get all user songs in a playlist
+      tags:
+        - Playlists
+      responses:
+        "200":
+          description: successful retrieval of songs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SongAllResponse"
+components:
+  schemas:
+    UserRegistration:
+      type: object
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+    UserLogin:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+    UserResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+            username:
+              type: string
+            email:
+              type: string
+            token:
+              type: string
+    PlaylistRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+    PlaylistCreatedResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            id:
+              type: number
+            title:
+              type: string
+            description:
+              type: string
+    PlaylistAllResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: number
+              title:
+                type: string
+              description:
+                type: string
+    SongRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        artist:
+          type: string
+        language_code:
+          type: string
+    SongAddedResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            id:
+              type: number
+            title:
+              type: string
+            artist:
+              type: string
+            language_code:
+              type: string
+    SongAllResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: number
+              title:
+                type: string
+              artist:
+                type: string
+              language_code:
+                type: string
