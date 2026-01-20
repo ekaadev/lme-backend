@@ -42,11 +42,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UserResponse"
-  /users/playlist:
+  /playlist:
     post:
       summary: create user playlist
       tags:
         - Playlists
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -64,6 +66,8 @@ paths:
       summary: get all user playlists
       tags:
         - Playlists
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: successful playlist creation
@@ -71,11 +75,27 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PlaylistAllResponse"
-  /users/playlist/{id}/songs:
+  /playlist/{id}:
+    get:
+      summary: get data of a user playlist by id
+      tags:
+        - Playlists
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: successful retrieval of playlist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DetailPlaylistResponse"
+  /playlist/{id}/songs:
     post:
       summary: add song to user playlist
       tags:
         - Playlists
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -89,18 +109,45 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SongAddedResponse"
+  /history:
     get:
-      summary: get all user songs in a playlist
+      summary: get all history based on user
       tags:
-        - Playlists
+        - History
+      security:
+        - bearerAuth: []
       responses:
         "200":
-          description: successful retrieval of songs
+          description: successful history retrieval
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SongAllResponse"
+                $ref: "#/components/schemas/UserHistoryResponse"
+    post:
+      summary: create history based on user
+      tags:
+        - History
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserHistoryRequest"
+      responses:
+        "201":
+          description: successful history creation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserHistoryResponse"
 components:
+  securitySchemes:
+    bearerAuth: # arbitrary name for the security scheme
+      type: http
+      scheme: bearer
+      bearerFormat: JWT # optional, arbitrary value for documentation purposes
   schemas:
     UserRegistration:
       type: object
@@ -188,7 +235,32 @@ components:
               type: string
             language_code:
               type: string
-    SongAllResponse:
+    DetailPlaylistResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            id:
+              type: number
+            title:
+              type: string
+            description:
+              type: string
+            songs:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: number
+                  title:
+                    type: string
+                  artist:
+                    type: string
+                  language_code:
+                    type: string
+    UserHistoryResponse:
       type: object
       properties:
         data:
@@ -198,9 +270,30 @@ components:
             properties:
               id:
                 type: number
-              title:
+              song_title:
                 type: string
-              artist:
+              song_description:
                 type: string
               language_code:
                 type: string
+              interpretation:
+                type: string
+              emotion:
+                type: array
+                items:
+                  type: string
+    UserHistoryRequest:
+      type: object
+      properties:
+        song_title:
+          type: string
+        song_artist:
+          type: string
+        language_code:
+          type: string
+        interpretation:
+          type: string
+        emotion:
+          type: array
+          items:
+            type: string
