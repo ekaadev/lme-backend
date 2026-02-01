@@ -92,7 +92,7 @@ async def login(
         value=refresh_token,
         httponly=True,
         secure=cookie_settings.get("secure", False),
-        samesite="lax",
+        samesite=cookie_settings.get("samesite", "lax"),
         max_age=7 * 24 * 60 * 60,  # 7 days
     )
     

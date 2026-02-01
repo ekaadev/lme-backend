@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     """
 
     # Application Settings
+    environment: str = "DEVELOPMENT"  # DEVELOPMENT or PRODUCTION
     app_name: str = "LyricMeaningExplanation"
     debug: bool = False
     api_v1_prefix: str = "/api/v1"

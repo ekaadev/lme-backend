@@ -141,9 +141,19 @@ def get_cookie_settings(secure: bool = False) -> Dict[str, Any]:
     Returns:
         Dictionary berisi konfigurasi cookie
     """
+    # Determine samesite based on environment
+    # DEVELOPMENT: 'lax' (localhost compatibility)
+    # PRODUCTION: 'none' (cross-origin support, requires secure=True)
+    is_production = settings.environment.upper() == "PRODUCTION"
+    samesite = "none" if is_production else "lax"
+    
+    # In production with samesite=none, secure MUST be True
+    if is_production:
+        secure = True
+    
     return {
         "httponly": True,
         "secure": secure,
-        "samesite": "lax",
+        "samesite": samesite,
         "max_age": settings.access_token_expire_minutes * 60,
     }
