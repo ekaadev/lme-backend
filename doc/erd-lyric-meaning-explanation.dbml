@@ -1,0 +1,36 @@
+Table users {
+  id bigint [pk]
+  username varchar
+  email varchar
+  password_hash varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table history {
+  id bigint [pk]
+  song_title varchar
+  song_artist varchar
+  interpretation text
+  emotion varchar
+  language_code varchar
+  created_at timestamp
+  user_id bigint [ref: > users.id]
+}
+
+Table playlist {
+  id bigint [pk]
+  title varchar
+  description text
+  created_at timestamp
+  updated_at timestamp
+  user_id bigint [ref: > users.id]
+}
+
+Table songs_saved {
+  id bigint [pk]
+  song_title varchar
+  song_artist varchar
+  created_at timestamp
+  playlist_id bigint [ref: > playlist.id]
+}
