@@ -1,299 +1,741 @@
 openapi: 3.1.0
 info:
-  title: Lyric Meaning Explanation API
-  description: Lyric Meaning Explanation API provides explanations for song lyrics.
+  title: LyricMeaningExplanation
+  description: API untuk menjelaskan makna lirik lagu
   version: 1.0.0
 servers:
-  - url: 'http://localhost:3000/v1/api'
+  - url: http://localhost:8000/api/v1
+
 paths:
-  /users/register:
+  # Auth endpoints
+  /auth/register:
     post:
-      summary: for use registration
+      summary: Register user baru
       tags:
-        - Users
+        - auth
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UserRegistration"
+              $ref: '#/components/schemas/RegisterRequest'
       responses:
-        "201":
-          description: successful registration
+        '201':
+          description: Successful registration
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserResponse"
-  /users/login:
+                $ref: '#/components/schemas/UserResponse'
+
+  /auth/login:
     post:
-      summary: for use login
+      summary: Login dengan JWT cookie
       tags:
-        - Users
+        - auth
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UserLogin"
+              $ref: '#/components/schemas/LoginRequest'
       responses:
-        "200":
-          description: successful login
+        '200':
+          description: Successful login
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserResponse"
-  /playlist:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/UserResponse'
+
+  /auth/logout:
     post:
-      summary: create user playlist
+      summary: Logout user
       tags:
-        - Playlists
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PlaylistRequest"
+        - auth
       responses:
-        "200":
-          description: successful playlist creation
+        '200':
+          description: Successful logout
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PlaylistCreatedResponse"
+                $ref: '#/components/schemas/MessageResponse'
+
+  /auth/refresh:
+    post:
+      summary: Refresh access token
+      tags:
+        - auth
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  # Users endpoints
+  /users/me:
     get:
-      summary: get all user playlists
+      summary: Get current user
       tags:
-        - Playlists
+        - users
       security:
-        - bearerAuth: []
+        - cookieAuth: []
       responses:
-        "200":
-          description: successful playlist creation
+        '200':
+          description: Current user data
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PlaylistAllResponse"
-  /playlist/{id}:
-    get:
-      summary: get data of a user playlist by id
+                $ref: '#/components/schemas/UserResponse'
+    patch:
+      summary: Update current user
       tags:
-        - Playlists
+        - users
       security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: successful retrieval of playlist
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/DetailPlaylistResponse"
-  /playlist/{id}/songs:
-    post:
-      summary: add song to user playlist
-      tags:
-        - Playlists
-      security:
-        - bearerAuth: []
+        - cookieAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SongRequest"
+              $ref: '#/components/schemas/UserUpdate'
       responses:
-        "201":
-          description: successful song addition
+        '200':
+          description: Updated user
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SongAddedResponse"
+                $ref: '#/components/schemas/UserResponse'
+
+  # History endpoints
   /history:
     get:
-      summary: get all history based on user
+      summary: Get history list
       tags:
-        - History
+        - history
       security:
-        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: skip
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
       responses:
-        "200":
-          description: successful history retrieval
+        '200':
+          description: History list
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserHistoryResponse"
+                type: array
+                items:
+                  $ref: '#/components/schemas/HistoryListResponse'
     post:
-      summary: create history based on user
+      summary: Create history
       tags:
-        - History
+        - history
       security:
-        - bearerAuth: []
+        - cookieAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UserHistoryRequest"
+              $ref: '#/components/schemas/HistoryCreate'
       responses:
-        "201":
-          description: successful history creation
+        '201':
+          description: Created history
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserHistoryResponse"
+                $ref: '#/components/schemas/HistoryResponse'
+
+  /history/{history_id}:
+    get:
+      summary: Get history detail
+      tags:
+        - history
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: history_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: History detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistoryResponse'
+    delete:
+      summary: Delete history
+      tags:
+        - history
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: history_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: History deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /history/search/:
+    get:
+      summary: Search history
+      tags:
+        - history
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HistoryListResponse'
+
+  # Playlist endpoints
+  /playlist:
+    get:
+      summary: Get playlists
+      tags:
+        - playlist
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: skip
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Playlist list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlaylistResponse'
+    post:
+      summary: Create playlist
+      tags:
+        - playlist
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlaylistCreate'
+      responses:
+        '201':
+          description: Created playlist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaylistResponse'
+
+  /playlist/{playlist_id}:
+    get:
+      summary: Get playlist with songs
+      tags:
+        - playlist
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: playlist_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Playlist detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaylistWithSongsResponse'
+    patch:
+      summary: Update playlist
+      tags:
+        - playlist
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: playlist_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlaylistUpdate'
+      responses:
+        '200':
+          description: Updated playlist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaylistResponse'
+    delete:
+      summary: Delete playlist
+      tags:
+        - playlist
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: playlist_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Playlist deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /playlist/{playlist_id}/songs:
+    post:
+      summary: Add song to playlist
+      tags:
+        - playlist
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: playlist_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SongSavedCreate'
+      responses:
+        '201':
+          description: Song added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SongSavedResponse'
+
+  /playlist/{playlist_id}/songs/{song_id}:
+    delete:
+      summary: Remove song from playlist
+      tags:
+        - playlist
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: playlist_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: song_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Song removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  # Songs endpoints
+  /songs/search:
+    get:
+      summary: Search songs from Genius
+      tags:
+        - songs
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            maximum: 20
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SongSearchResult'
+
+  /songs/explain:
+    post:
+      summary: Explain song lyrics with emotion detection
+      tags:
+        - songs
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExplainRequest'
+      responses:
+        '200':
+          description: Explanation results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExplainResponse'
+
 components:
   securitySchemes:
-    bearerAuth: # arbitrary name for the security scheme
-      type: http
-      scheme: bearer
-      bearerFormat: JWT # optional, arbitrary value for documentation purposes
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: jwt
+
   schemas:
-    UserRegistration:
+    RegisterRequest:
+      type: object
+      required:
+        - username
+        - email
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+          maxLength: 100
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+
+    UserResponse:
       type: object
       properties:
+        id:
+          type: integer
         username:
           type: string
         email:
           type: string
-        password:
+          format: email
+        created_at:
           type: string
-    UserLogin:
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UserUpdate:
       type: object
       properties:
         username:
           type: string
+          minLength: 3
+          maxLength: 50
+        email:
+          type: string
+          format: email
         password:
           type: string
-    UserResponse:
+          minLength: 8
+          maxLength: 100
+
+    MessageResponse:
       type: object
       properties:
-        data:
-          type: object
-          properties:
-            id:
-              type: string
-            username:
-              type: string
-            email:
-              type: string
-            token:
-              type: string
-    PlaylistRequest:
-      type: object
-      properties:
-        title:
+        message:
           type: string
-        description:
+        detail:
           type: string
-    PlaylistCreatedResponse:
+
+    HistoryCreate:
       type: object
+      required:
+        - song_title
+        - song_artist
       properties:
-        data:
-          type: object
-          properties:
-            id:
-              type: number
-            title:
-              type: string
-            description:
-              type: string
-    PlaylistAllResponse:
-      type: object
-      properties:
-        data:
-          type: array
-          items:
-            type: object
-            properties:
-              id:
-                type: number
-              title:
-                type: string
-              description:
-                type: string
-    SongRequest:
-      type: object
-      properties:
-        title:
+        song_title:
           type: string
-        artist:
+          maxLength: 255
+        song_artist:
           type: string
+          maxLength: 255
+        interpretation:
+          type: string
+        emotion:
+          type: string
+          maxLength: 100
         language_code:
           type: string
-    SongAddedResponse:
+          default: id
+          maxLength: 10
+
+    HistoryResponse:
       type: object
       properties:
-        data:
-          type: object
-          properties:
-            id:
-              type: number
-            title:
-              type: string
-            artist:
-              type: string
-            language_code:
-              type: string
-    DetailPlaylistResponse:
-      type: object
-      properties:
-        data:
-          type: object
-          properties:
-            id:
-              type: number
-            title:
-              type: string
-            description:
-              type: string
-            songs:
-              type: array
-              items:
-                type: object
-                properties:
-                  id:
-                    type: number
-                  title:
-                    type: string
-                  artist:
-                    type: string
-                  language_code:
-                    type: string
-    UserHistoryResponse:
-      type: object
-      properties:
-        data:
-          type: array
-          items:
-            type: object
-            properties:
-              id:
-                type: number
-              song_title:
-                type: string
-              song_description:
-                type: string
-              language_code:
-                type: string
-              interpretation:
-                type: string
-              emotion:
-                type: array
-                items:
-                  type: string
-    UserHistoryRequest:
-      type: object
-      properties:
+        id:
+          type: integer
         song_title:
           type: string
         song_artist:
           type: string
-        language_code:
-          type: string
         interpretation:
           type: string
         emotion:
+          type: string
+        language_code:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        user_id:
+          type: integer
+
+    HistoryListResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        song_title:
+          type: string
+        song_artist:
+          type: string
+        emotion:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    PlaylistCreate:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+
+    PlaylistUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+
+    PlaylistResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        user_id:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PlaylistWithSongsResponse:
+      allOf:
+        - $ref: '#/components/schemas/PlaylistResponse'
+        - type: object
+          properties:
+            songs:
+              type: array
+              items:
+                $ref: '#/components/schemas/SongSavedResponse'
+
+    SongSavedCreate:
+      type: object
+      required:
+        - song_title
+        - song_artist
+        - playlist_id
+      properties:
+        song_title:
+          type: string
+          maxLength: 255
+        song_artist:
+          type: string
+          maxLength: 255
+        playlist_id:
+          type: integer
+
+    SongSavedResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        song_title:
+          type: string
+        song_artist:
+          type: string
+        playlist_id:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    SongSearchResult:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        artist:
+          type: string
+        thumbnail:
+          type: string
+        url:
+          type: string
+
+    ExplainRequest:
+      type: object
+      required:
+        - songs
+      properties:
+        songs:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/SongInput'
+        language_code:
+          type: string
+          default: id
+          maxLength: 10
+
+    SongInput:
+      type: object
+      required:
+        - title
+        - artist
+      properties:
+        title:
+          type: string
+          maxLength: 255
+        artist:
+          type: string
+          maxLength: 255
+
+    ExplainResponse:
+      type: object
+      properties:
+        results:
           type: array
           items:
-            type: string
+            $ref: '#/components/schemas/ExplainResult'
+        total:
+          type: integer
+
+    ExplainResult:
+      type: object
+      properties:
+        id:
+          type: integer
+        song_title:
+          type: string
+        song_artist:
+          type: string
+        lyrics:
+          type: string
+        emotion:
+          $ref: '#/components/schemas/EmotionResult'
+        interpretation:
+          type: string
+        error:
+          type: string
+
+    EmotionResult:
+      type: object
+      properties:
+        emotion:
+          type: string
+        confidence:
+          type: number
+        all_emotions:
+          type: object
+          additionalProperties:
+            type: number
