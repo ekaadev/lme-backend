@@ -87,13 +87,15 @@ async def login(
         value=access_token,
         **cookie_settings,
     )
+    # Set refresh token cookie with same settings
+    refresh_cookie_settings = {
+        **cookie_settings,
+        "max_age": 7 * 24 * 60 * 60,  # 7 days (override access token max_age)
+    }
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
-        httponly=True,
-        secure=cookie_settings.get("secure", False),
-        samesite=cookie_settings.get("samesite", "lax"),
-        max_age=7 * 24 * 60 * 60,  # 7 days
+        **refresh_cookie_settings,
     )
     
     return {

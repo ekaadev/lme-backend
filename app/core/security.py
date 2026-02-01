@@ -151,9 +151,16 @@ def get_cookie_settings(secure: bool = False) -> Dict[str, Any]:
     if is_production:
         secure = True
     
-    return {
+    cookie_config = {
         "httponly": True,
         "secure": secure,
         "samesite": samesite,
         "max_age": settings.access_token_expire_minutes * 60,
     }
+    
+    # Add partitioned for CHIPS (Cookies Having Independent Partitioned State)
+    # Required for samesite=none in Chrome
+    if samesite == "none":
+        cookie_config["partitioned"] = True
+    
+    return cookie_config
