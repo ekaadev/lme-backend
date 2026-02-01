@@ -19,12 +19,33 @@ MODEL_PATH = os.path.join(
 
 # Label emosi (sesuaikan dengan model)
 EMOTION_LABELS = [
-    "happy",
-    "sad",
+    "admiration",
+    "amusement",
     "anger",
-    "fear",
-    "surprise",
+    "annoyance",
+    "approval",
+    "caring",
+    "confusion",
+    "curiosity",
+    "desire",
+    "disappointment",
+    "disapproval",
     "disgust",
+    "embarrassment",
+    "excitement",
+    "fear",
+    "gratitude",
+    "grief",
+    "joy",
+    "love",
+    "nervousness",
+    "optimism",
+    "pride",
+    "realization",
+    "relief",
+    "remorse",
+    "sadness",
+    "surprise",
     "neutral",
 ]
 
@@ -57,10 +78,10 @@ class EmotionService:
                 providers=["CPUExecutionProvider"]
             )
             
-            # Load tokenizer (assumes bert-base model)
-            # Sesuaikan dengan tokenizer yang digunakan saat training
+            # Load tokenizer - model uses roberta-base (English)
+            # Vocab size must match: 50265
             self._tokenizer = AutoTokenizer.from_pretrained(
-                "bert-base-multilingual-uncased"
+                "roberta-base"
             )
             
             logger.info("Emotion model loaded successfully")

@@ -30,6 +30,10 @@ class GeniusService:
                 settings.genius_access_token,
                 verbose=False,
                 remove_section_headers=True,
+                skip_non_songs=True,
+                excluded_terms=["(Remix)", "(Live)"],
+                retries=3,
+                timeout=15,
             )
         return self._genius
     
@@ -92,17 +96,63 @@ class GeniusService:
         try:
             logger.info(f"Getting lyrics for: {song_title} by {artist}")
             
-            song = self.genius.search_song(song_title, artist)
+            # Try API first
+            try:
+                song = self.genius.search_song(song_title, artist)
+                if song and song.lyrics:
+                    return song.lyrics
+            except Exception as api_error:
+                logger.warning(f"API method failed: {api_error}, trying fallback...")
             
-            if not song:
+            # Fallback: search dan scrape dari URL
+            search_results = await self.search_songs(f"{song_title} {artist}", limit=1)
+            if not search_results or not search_results[0].get("url"):
                 logger.warning(f"Song not found: {song_title} by {artist}")
                 return None
             
-            return song.lyrics
+            # Scrape lyrics dari URL
+            song_url = search_results[0]["url"]
+            lyrics = self._scrape_lyrics_from_url(song_url)
+            
+            if not lyrics:
+                logger.warning(f"No lyrics found at: {song_url}")
+                return None
+            
+            return lyrics
             
         except Exception as e:
             logger.error(f"Error getting lyrics: {str(e)}")
             raise ExternalAPIError(detail=f"Failed to get lyrics: {str(e)}")
+    
+    def _scrape_lyrics_from_url(self, url: str) -> Optional[str]:
+        """Scrape lyrics dari Genius URL menggunakan BeautifulSoup."""
+        try:
+            import requests
+            from bs4 import BeautifulSoup
+            
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            }
+            
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.text, "html.parser")
+            
+            # Genius menggunakan div dengan data-lyrics-container="true"
+            lyrics_divs = soup.find_all("div", {"data-lyrics-container": "true"})
+            
+            if not lyrics_divs:
+                return None
+            
+            # Gabungkan semua lyrics sections
+            lyrics_text = "\n\n".join(div.get_text(separator="\n") for div in lyrics_divs)
+            
+            return lyrics_text.strip()
+            
+        except Exception as e:
+            logger.error(f"Error scraping lyrics from {url}: {e}")
+            return None
 
 
 # Singleton instance
