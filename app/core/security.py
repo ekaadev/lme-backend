@@ -145,7 +145,8 @@ def get_cookie_settings(secure: bool = False) -> Dict[str, Any]:
     # DEVELOPMENT: 'lax' (localhost compatibility)
     # PRODUCTION: 'none' (cross-origin support, requires secure=True)
     is_production = settings.environment.upper() == "PRODUCTION"
-    samesite = "none" if is_production else "lax"
+    domain = settings.domain.lower()
+    samesite = "lax" if is_production else "lax"
     
     # In production with samesite=none, secure MUST be True
     if is_production:
@@ -160,7 +161,7 @@ def get_cookie_settings(secure: bool = False) -> Dict[str, Any]:
     
     # Add partitioned for CHIPS (Cookies Having Independent Partitioned State)
     # Required for samesite=none in Chrome
-    if samesite == "none":
-        cookie_config["partitioned"] = True
+    # if samesite == "none":
+    #     cookie_config["partitioned"] = True
     
     return cookie_config

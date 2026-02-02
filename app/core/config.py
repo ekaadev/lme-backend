@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     # External API
     genius_access_token: str = ""
 
+    # Domain
+    domain: str = "localhost"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
