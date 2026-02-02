@@ -157,6 +157,7 @@ def get_cookie_settings(secure: bool = False) -> Dict[str, Any]:
         "secure": secure,
         "samesite": samesite,
         "max_age": settings.access_token_expire_minutes * 60,
+        "domain": domain,
     }
     
     # Add partitioned for CHIPS (Cookies Having Independent Partitioned State)
