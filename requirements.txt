@@ -25,6 +25,8 @@ lyricsgenius==3.0.1
 
 # ML Inference
 onnxruntime==1.20.0
+transformers==4.39.3
+torch==2.1.0
 numpy==1.26.4
 
 # Testing
