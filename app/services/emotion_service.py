@@ -6,7 +6,7 @@ Menggunakan Hugging Face Inference API untuk inference.
 import os
 from typing import Dict
 
-from huggingface_hub import InferenceClient
+import httpx
 
 from app.core.exceptions import AppException
 from app.utils.logger import logger
@@ -15,6 +15,9 @@ from app.utils.logger import logger
 # Hugging Face configuration
 HF_TOKEN = os.getenv("TOKEN_HF")
 HF_MODEL_ID = os.getenv("REPOSIOTRY_ID", "ekaadev/lme-emotion-detection")
+
+# New HuggingFace Router endpoint
+HF_API_URL = f"https://router.huggingface.co/hf-inference/models/{HF_MODEL_ID}"
 
 # Label emosi (sesuaikan dengan model)
 EMOTION_LABELS = [
@@ -56,14 +59,19 @@ class EmotionService:
         """Inisialisasi emotion service."""
         self._client = None
     
-    def _get_client(self) -> InferenceClient:
-        """Lazy load inference client."""
+    def _get_client(self) -> httpx.AsyncClient:
+        """Lazy load HTTP client."""
         if self._client is None:
-            if not HF_TOKEN:
+            headers = {"Content-Type": "application/json"}
+            
+            if HF_TOKEN:
+                headers["Authorization"] = f"Bearer {HF_TOKEN}"
+                logger.info("Using HuggingFace token for authentication")
+            else:
                 logger.warning("TOKEN_HF not set. API calls may fail for private models.")
             
-            self._client = InferenceClient(token=HF_TOKEN)
-            logger.info(f"Initialized HuggingFace Inference Client for model: {HF_MODEL_ID}")
+            self._client = httpx.AsyncClient(headers=headers, timeout=60.0)
+            logger.info(f"Initialized HTTP Client for model: {HF_MODEL_ID}")
         
         return self._client
     
@@ -85,36 +93,54 @@ class EmotionService:
         try:
             client = self._get_client()
             
-            logger.info(f"Calling HuggingFace Inference API for model: {HF_MODEL_ID}")
+            api_url = f"https://router.huggingface.co/hf-inference/models/{HF_MODEL_ID}"
+            logger.info(f"Calling HuggingFace Inference API: {api_url}")
             
             # Call HuggingFace Inference API for text classification
-            result = client.text_classification(
-                text=text,
-                model=HF_MODEL_ID,
+            response = await client.post(
+                api_url,
+                json={"inputs": text}
             )
             
+            if response.status_code != 200:
+                error_detail = response.text
+                logger.error(f"Inference API error: {response.status_code} - {error_detail}")
+                raise AppException(
+                    status_code=500,
+                    detail=f"Inference API error: {response.status_code} - {error_detail}"
+                )
+            
+            result = response.json()
             logger.info(f"Inference API response: {result}")
             
-            # Parse response - returns list of {label, score}
+            # Parse response - returns list of list of {label, score}
+            # Format: [[{"label": "joy", "score": 0.9}, ...]]
             if not result:
                 raise AppException(
                     status_code=500,
                     detail="Empty response from Inference API"
                 )
             
-            # Get top prediction
-            top_result = result[0] if isinstance(result, list) else result
+            # Handle nested list format
+            predictions = result[0] if isinstance(result, list) and len(result) > 0 else result
+            if isinstance(predictions, list) and len(predictions) > 0:
+                # Sort by score to get top prediction
+                sorted_predictions = sorted(predictions, key=lambda x: x.get("score", 0), reverse=True)
+                top_result = sorted_predictions[0]
+            else:
+                top_result = predictions
+            
             emotion = top_result.get("label", "unknown")
             confidence = top_result.get("score", 0.0)
             
             # Build all emotions dict from response
             all_emotions = {}
-            if isinstance(result, list):
-                for item in result:
-                    label = item.get("label", "")
-                    score = item.get("score", 0.0)
-                    if label:
-                        all_emotions[label] = round(float(score), 4)
+            items = predictions if isinstance(predictions, list) else [predictions]
+            for item in items:
+                label = item.get("label", "")
+                score = item.get("score", 0.0)
+                if label:
+                    all_emotions[label] = round(float(score), 4)
             
             return {
                 "emotion": emotion,
@@ -122,6 +148,8 @@ class EmotionService:
                 "all_emotions": all_emotions
             }
             
+        except AppException:
+            raise
         except Exception as e:
             logger.error(f"Error predicting emotion via Inference API: {e}")
             raise AppException(
