@@ -64,6 +64,22 @@ class EmotionService:
             import onnxruntime as ort
             from transformers import AutoTokenizer
             
+            # Auto-download dari Hugging Face jika tidak ada
+            if not os.path.exists(MODEL_PATH):
+                logger.warning(f"Model not found at {MODEL_PATH}")
+                logger.info("Attempting to download from Hugging Face...")
+                
+                try:
+                    from app.dl.download_model import download_model
+                    download_model()
+                except Exception as download_error:
+                    logger.error(f"Failed to auto-download model: {download_error}")
+                    raise AppException(
+                        status_code=500,
+                        detail=f"Emotion model not found at {MODEL_PATH} and auto-download failed: {download_error}"
+                    )
+            
+            # Verify model exists after download attempt
             if not os.path.exists(MODEL_PATH):
                 raise AppException(
                     status_code=500,
