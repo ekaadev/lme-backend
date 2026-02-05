@@ -1,21 +1,20 @@
 """
 Emotion service untuk deteksi emosi dari lirik lagu.
-Menggunakan ONNX model untuk inference.
+Menggunakan Hugging Face Inference API untuk inference.
 """
 
 import os
-from typing import Dict, List, Optional
+from typing import Dict
 
-import numpy as np
+from huggingface_hub import InferenceClient
 
 from app.core.exceptions import AppException
 from app.utils.logger import logger
 
-# Path ke model ONNX
-MODEL_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)),
-    "dl", "models", "emotion_model.onnx"
-)
+
+# Hugging Face configuration
+HF_TOKEN = os.getenv("TOKEN_HF")
+HF_MODEL_ID = os.getenv("REPOSIOTRY_ID", "ekaadev/lme-emotion-detection")
 
 # Label emosi (sesuaikan dengan model)
 EMOTION_LABELS = [
@@ -51,151 +50,84 @@ EMOTION_LABELS = [
 
 
 class EmotionService:
-    """Service untuk deteksi emosi dari teks."""
+    """Service untuk deteksi emosi dari teks menggunakan HuggingFace Inference API."""
     
     def __init__(self):
         """Inisialisasi emotion service."""
-        self._session = None
-        self._tokenizer = None
+        self._client = None
     
-    def _load_model(self):
-        """Load ONNX model dan tokenizer."""
-        try:
-            import onnxruntime as ort
-            from transformers import AutoTokenizer
+    def _get_client(self) -> InferenceClient:
+        """Lazy load inference client."""
+        if self._client is None:
+            if not HF_TOKEN:
+                logger.warning("TOKEN_HF not set. API calls may fail for private models.")
             
-            # Auto-download dari Hugging Face jika tidak ada
-            if not os.path.exists(MODEL_PATH):
-                logger.warning(f"Model not found at {MODEL_PATH}")
-                logger.info("Attempting to download from Hugging Face...")
-                
-                try:
-                    from app.dl.download_model import download_model
-                    download_model()
-                except Exception as download_error:
-                    logger.error(f"Failed to auto-download model: {download_error}")
-                    raise AppException(
-                        status_code=500,
-                        detail=f"Emotion model not found at {MODEL_PATH} and auto-download failed: {download_error}"
-                    )
-            
-            # Verify model exists after download attempt
-            if not os.path.exists(MODEL_PATH):
-                raise AppException(
-                    status_code=500,
-                    detail=f"Emotion model not found at {MODEL_PATH}"
-                )
-            
-            logger.info(f"Loading emotion model from {MODEL_PATH}")
-            
-            # Load ONNX session
-            self._session = ort.InferenceSession(
-                MODEL_PATH,
-                providers=["CPUExecutionProvider"]
-            )
-            
-            # Load tokenizer - model uses roberta-base (English)
-            # Vocab size must match: 50265
-            self._tokenizer = AutoTokenizer.from_pretrained(
-                "roberta-base"
-            )
-            
-            logger.info("Emotion model loaded successfully")
-            
-        except ImportError as e:
-            logger.error(f"Missing dependency for emotion service: {e}")
-            raise AppException(
-                status_code=500,
-                detail="Missing dependency: onnxruntime or transformers"
-            )
-        except Exception as e:
-            logger.error(f"Error loading emotion model: {e}")
-            raise AppException(
-                status_code=500,
-                detail=f"Failed to load emotion model: {str(e)}"
-            )
-    
-    @property
-    def session(self):
-        """Lazy load session."""
-        if self._session is None:
-            self._load_model()
-        return self._session
-    
-    @property
-    def tokenizer(self):
-        """Lazy load tokenizer."""
-        if self._tokenizer is None:
-            self._load_model()
-        return self._tokenizer
+            self._client = InferenceClient(token=HF_TOKEN)
+            logger.info(f"Initialized HuggingFace Inference Client for model: {HF_MODEL_ID}")
+        
+        return self._client
     
     async def predict_emotion(
         self,
         text: str,
-        max_length: int = 128,
+        max_length: int = 128,  # kept for API compatibility, not used in inference API
     ) -> Dict[str, any]:
         """
-        Prediksi emosi dari teks.
+        Prediksi emosi dari teks menggunakan HuggingFace Inference API.
         
         Args:
             text: Teks lirik lagu
-            max_length: Panjang maksimal token
+            max_length: Tidak digunakan (untuk kompatibilitas API)
             
         Returns:
             Dict dengan emotion dan confidence
         """
         try:
-            # Tokenize input
-            inputs = self.tokenizer(
-                text,
-                return_tensors="np",
-                max_length=max_length,
-                truncation=True,
-                padding="max_length",
+            client = self._get_client()
+            
+            logger.info(f"Calling HuggingFace Inference API for model: {HF_MODEL_ID}")
+            
+            # Call HuggingFace Inference API for text classification
+            result = client.text_classification(
+                text=text,
+                model=HF_MODEL_ID,
             )
             
-            # Run inference - hanya input_ids dan attention_mask
-            input_feed = {
-                "input_ids": inputs["input_ids"].astype(np.int64),
-                "attention_mask": inputs["attention_mask"].astype(np.int64),
-            }
+            logger.info(f"Inference API response: {result}")
             
-            outputs = self.session.run(None, input_feed)
+            # Parse response - returns list of {label, score}
+            if not result:
+                raise AppException(
+                    status_code=500,
+                    detail="Empty response from Inference API"
+                )
             
-            # Get predictions
-            logits = outputs[0]
-            probabilities = self._softmax(logits[0])
+            # Get top prediction
+            top_result = result[0] if isinstance(result, list) else result
+            emotion = top_result.get("label", "unknown")
+            confidence = top_result.get("score", 0.0)
             
-            predicted_idx = int(np.argmax(probabilities))
-            confidence = float(probabilities[predicted_idx])
-            
-            # Handle jika index melebihi jumlah labels
-            if predicted_idx < len(EMOTION_LABELS):
-                emotion = EMOTION_LABELS[predicted_idx]
-            else:
-                emotion = f"emotion_{predicted_idx}"
+            # Build all emotions dict from response
+            all_emotions = {}
+            if isinstance(result, list):
+                for item in result:
+                    label = item.get("label", "")
+                    score = item.get("score", 0.0)
+                    if label:
+                        all_emotions[label] = round(float(score), 4)
             
             return {
                 "emotion": emotion,
-                "confidence": round(confidence, 4),
-                "all_emotions": {
-                    label: round(float(prob), 4)
-                    for label, prob in zip(EMOTION_LABELS, probabilities)
-                    if label and prob
-                }
+                "confidence": round(float(confidence), 4),
+                "all_emotions": all_emotions
             }
             
         except Exception as e:
-            logger.error(f"Error predicting emotion: {e}")
+            logger.error(f"Error predicting emotion via Inference API: {e}")
             raise AppException(
                 status_code=500,
                 detail=f"Failed to predict emotion: {str(e)}"
             )
-    
-    def _softmax(self, x: np.ndarray) -> np.ndarray:
-        """Compute softmax values."""
-        exp_x = np.exp(x - np.max(x))
-        return exp_x / exp_x.sum()
 
 
 # Singleton instance
