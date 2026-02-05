@@ -38,6 +38,7 @@ def download_model():
     try:
         from huggingface_hub import hf_hub_download
         import onnxruntime as ort
+        import shutil
         
         # Download model from HF Hub with token authentication
         logger.info(f"Downloading model from {HF_REPO_ID}...")
@@ -45,12 +46,15 @@ def download_model():
             repo_id=HF_REPO_ID,
             filename=HF_FILENAME,
             token=HF_TOKEN,  # Token for private repository access
-            cache_dir=None,  # Use default cache
-            local_dir=MODEL_DIR,
-            local_dir_use_symlinks=False,  # Copy file directly
         )
         
-        logger.info(f"Model successfully downloaded to: {downloaded_path}")
+        logger.info(f"Model downloaded to cache: {downloaded_path}")
+        
+        # Copy downloaded file to expected MODEL_PATH if they're different
+        downloaded_path_obj = Path(downloaded_path)
+        if downloaded_path_obj.resolve() != MODEL_PATH.resolve():
+            logger.info(f"Copying model from {downloaded_path} to {MODEL_PATH}")
+            shutil.copy2(downloaded_path, MODEL_PATH)
         
         # Verify file exists and has reasonable size
         if MODEL_PATH.exists():
