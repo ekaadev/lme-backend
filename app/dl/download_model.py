@@ -13,7 +13,7 @@ MODEL_PATH = MODEL_DIR / "emotion_model.onnx"
 # Hugging Face repo configuration - loaded from environment variables
 # Default values if not set in env
 HF_REPO_ID = os.getenv("REPOSIOTRY_ID", "ekaadev/lme-emotion-detection")
-HF_FILENAME = "emotion_model.onnx"
+HF_FILENAME = os.getenv("HF_MODEL_FILENAME", "emotion_model.onnx")  # Configurable filename
 HF_TOKEN = os.getenv("TOKEN_HF")  # Token for private repository access
 
 
