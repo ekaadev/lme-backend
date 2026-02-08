@@ -3,21 +3,14 @@ Emotion service untuk deteksi emosi dari lirik lagu.
 Menggunakan Hugging Face Inference API untuk inference.
 """
 
-import os
 from typing import Dict
 
 import httpx
 
+from app.core.config import settings
 from app.core.exceptions import AppException
 from app.utils.logger import logger
 
-
-# Hugging Face configuration
-HF_TOKEN = os.getenv("TOKEN_HF")
-HF_MODEL_ID = os.getenv("REPOSIOTRY_ID", "ekaadev/lme-emotion-detection")
-
-# New HuggingFace Router endpoint
-HF_API_URL = f"https://router.huggingface.co/hf-inference/models/{HF_MODEL_ID}"
 
 # Label emosi (sesuaikan dengan model)
 EMOTION_LABELS = [
@@ -62,16 +55,20 @@ class EmotionService:
     def _get_client(self) -> httpx.AsyncClient:
         """Lazy load HTTP client."""
         if self._client is None:
+            # Use settings from pydantic which properly loads .env
+            token = settings.token_hf
+            model_id = settings.repository_id
+            
             headers = {"Content-Type": "application/json"}
             
-            if HF_TOKEN:
-                headers["Authorization"] = f"Bearer {HF_TOKEN}"
-                logger.info("Using HuggingFace token for authentication")
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+                logger.info(f"Using HuggingFace token for authentication (token starts with: {token[:10]}...)")
             else:
-                logger.warning("TOKEN_HF not set. API calls may fail for private models.")
+                logger.warning("TOKEN_HF not set in .env file. API calls may fail for private models.")
             
             self._client = httpx.AsyncClient(headers=headers, timeout=60.0)
-            logger.info(f"Initialized HTTP Client for model: {HF_MODEL_ID}")
+            logger.info(f"Initialized HTTP Client for model: {model_id}")
         
         return self._client
     
@@ -93,13 +90,28 @@ class EmotionService:
         try:
             client = self._get_client()
             
-            api_url = f"https://router.huggingface.co/hf-inference/models/{HF_MODEL_ID}"
+            model_id = settings.repository_id
+            api_url = f"https://router.huggingface.co/hf-inference/models/{model_id}"
             logger.info(f"Calling HuggingFace Inference API: {api_url}")
             
+            # Truncate text to prevent exceeding model's max token limit (512 tokens)
+            # Using very conservative limit: 500 chars ≈ 125 tokens for safety
+            # 
+            # TODO: Ketika menggunakan model TinoIf/lme-emotion yang sudah di-deploy,
+            #       bisa hapus/ubah limit ini jika model mendukung input lebih panjang
+            max_chars = 500
+            original_len = len(text)
+            truncated_text = text[:max_chars] if original_len > max_chars else text
+            logger.info(f"Input text length: {original_len} chars, sending: {len(truncated_text)} chars")
+            
             # Call HuggingFace Inference API for text classification
+            # wait_for_model: True untuk serverless - akan menunggu model loading
             response = await client.post(
                 api_url,
-                json={"inputs": text}
+                json={
+                    "inputs": truncated_text,
+                    "options": {"wait_for_model": True}
+                }
             )
             
             if response.status_code != 200:

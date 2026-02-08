@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     # External API
     genius_access_token: str = ""
 
+    # Hugging Face Settings
+    token_hf: str = ""
+    repository_id: str = "TinoIf/lme-emotion"
+
     # Domain
     domain: str = "localhost"
 
