@@ -1,11 +1,13 @@
 """
 Emotion service untuk deteksi emosi dari lirik lagu.
-Menggunakan Hugging Face Inference API untuk inference.
+Mendukung 2 mode:
+1. Local mode: Menggunakan model ONNX lokal
+2. Maintenance mode: Menampilkan pesan maintenance jika fitur belum tersedia
 """
 
 from typing import Dict
 
-import httpx
+import numpy as np
 
 from app.core.config import settings
 from app.core.exceptions import AppException
@@ -44,9 +46,12 @@ EMOTION_LABELS = [
     "neutral",
 ]
 
+# Path ke model lokal
+LOCAL_MODEL_PATH = Path(__file__).parent.parent / "dl" / "models" / "model.onnx"
+
 
 class EmotionService:
-    """Service untuk deteksi emosi dari teks menggunakan HuggingFace Inference API."""
+    """Service untuk deteksi emosi dari teks."""
     
     def __init__(self):
         """Inisialisasi emotion service."""
@@ -70,19 +75,33 @@ class EmotionService:
             self._client = httpx.AsyncClient(headers=headers, timeout=60.0)
             logger.info(f"Initialized HTTP Client for model: {model_id}")
         
-        return self._client
+        # Buat dict semua emosi
+        all_emotions = {}
+        for i, label in enumerate(EMOTION_LABELS):
+            if i < len(probabilities):
+                all_emotions[label] = round(float(probabilities[i]), 4)
+        
+        return {
+            "emotion": emotion,
+            "confidence": round(confidence, 4),
+            "all_emotions": all_emotions
+        }
     
     async def predict_emotion(
         self,
         text: str,
-        max_length: int = 128,  # kept for API compatibility, not used in inference API
+        max_length: int = 128,
     ) -> Dict[str, any]:
         """
-        Prediksi emosi dari teks menggunakan HuggingFace Inference API.
+        Prediksi emosi dari teks.
+        
+        Mode operasi berdasarkan konfigurasi:
+        1. Maintenance mode: Return error dengan pesan maintenance
+        2. Local mode: Gunakan model lokal ONNX
         
         Args:
             text: Teks lirik lagu
-            max_length: Tidak digunakan (untuk kompatibilitas API)
+            max_length: Panjang maksimum token
             
         Returns:
             Dict dengan emotion dan confidence
@@ -113,61 +132,28 @@ class EmotionService:
                     "options": {"wait_for_model": True}
                 }
             )
-            
-            if response.status_code != 200:
-                error_detail = response.text
-                logger.error(f"Inference API error: {response.status_code} - {error_detail}")
+        
+        # Cek apakah menggunakan model lokal
+        if settings.use_local_model:
+            logger.info("Using local ONNX model for emotion prediction")
+            try:
+                return self._predict_local(text, max_length)
+            except AppException:
+                raise
+            except Exception as e:
+                logger.error(f"Error predicting emotion with local model: {e}")
                 raise AppException(
                     status_code=500,
-                    detail=f"Inference API error: {response.status_code} - {error_detail}"
+                    detail=f"Failed to predict emotion: {str(e)}"
                 )
-            
-            result = response.json()
-            logger.info(f"Inference API response: {result}")
-            
-            # Parse response - returns list of list of {label, score}
-            # Format: [[{"label": "joy", "score": 0.9}, ...]]
-            if not result:
-                raise AppException(
-                    status_code=500,
-                    detail="Empty response from Inference API"
-                )
-            
-            # Handle nested list format
-            predictions = result[0] if isinstance(result, list) and len(result) > 0 else result
-            if isinstance(predictions, list) and len(predictions) > 0:
-                # Sort by score to get top prediction
-                sorted_predictions = sorted(predictions, key=lambda x: x.get("score", 0), reverse=True)
-                top_result = sorted_predictions[0]
-            else:
-                top_result = predictions
-            
-            emotion = top_result.get("label", "unknown")
-            confidence = top_result.get("score", 0.0)
-            
-            # Build all emotions dict from response
-            all_emotions = {}
-            items = predictions if isinstance(predictions, list) else [predictions]
-            for item in items:
-                label = item.get("label", "")
-                score = item.get("score", 0.0)
-                if label:
-                    all_emotions[label] = round(float(score), 4)
-            
-            return {
-                "emotion": emotion,
-                "confidence": round(float(confidence), 4),
-                "all_emotions": all_emotions
-            }
-            
-        except AppException:
-            raise
-        except Exception as e:
-            logger.error(f"Error predicting emotion via Inference API: {e}")
-            raise AppException(
-                status_code=500,
-                detail=f"Failed to predict emotion: {str(e)}"
-            )
+        
+        # Jika tidak local mode dan tidak maintenance, tampilkan error
+        # karena API HuggingFace sedang bermasalah
+        logger.error("HuggingFace Inference API is not available")
+        raise AppException(
+            status_code=503,
+            detail="Emotion detection service is currently unavailable. HuggingFace API is experiencing issues."
+        )
 
 
 # Singleton instance

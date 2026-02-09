@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     # Domain
     domain: str = "localhost"
 
+    # Model Loading Configuration
+    use_local_model: bool = False  # Jika True, gunakan model lokal
+    emotion_service_maintenance: bool = False  # Jika True, tampilkan pesan maintenance
+
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
