@@ -128,7 +128,8 @@ class InterpretationService:
         """
         return (
             f"Lagu '{song_title}' oleh {song_artist} memiliki nuansa emosi {emotion}. "
-            f"Interpretasi detail akan tersedia setelah model ML dikembangkan."
+            f"Analisis mendalam tentang makna lirik akan segera hadir dalam pembaruan berikutnya. "
+            f"Nantikan fitur interpretasi lengkap kami!"
         )
 
 
