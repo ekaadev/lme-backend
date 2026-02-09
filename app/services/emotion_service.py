@@ -5,9 +5,7 @@ Mendukung 2 mode:
 2. Maintenance mode: Menampilkan pesan maintenance jika fitur belum tersedia
 """
 
-import os
-from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict
 
 import numpy as np
 
@@ -57,107 +55,25 @@ class EmotionService:
     
     def __init__(self):
         """Inisialisasi emotion service."""
-        self._session = None
-        self._tokenizer = None
-        self._is_initialized = False
-        
-    def _initialize_local_model(self) -> None:
-        """
-        Inisialisasi model lokal menggunakan ONNX Runtime.
-        Model di-load dari app/dl/models/model.onnx.
-        """
-        if self._is_initialized:
-            return
-            
-        try:
-            import onnxruntime as ort
-            from transformers import AutoTokenizer
-            
-            # Cek apakah file model ada
-            if not LOCAL_MODEL_PATH.exists():
-                raise AppException(
-                    status_code=500,
-                    detail=f"Model file not found at {LOCAL_MODEL_PATH}"
-                )
-            
-            logger.info(f"Loading local ONNX model from: {LOCAL_MODEL_PATH}")
-            
-            # Load ONNX session
-            self._session = ort.InferenceSession(
-                str(LOCAL_MODEL_PATH),
-                providers=['CPUExecutionProvider']
-            )
-            
-            # Load tokenizer dari HuggingFace (model yang sama)
-            hf_model_id = os.getenv("REPOSIOTRY_ID", "SamLowe/roberta-base-go_emotions")
-            logger.info(f"Loading tokenizer from: {hf_model_id}")
-            self._tokenizer = AutoTokenizer.from_pretrained(hf_model_id)
-            
-            self._is_initialized = True
-            logger.info("Local emotion model initialized successfully")
-            
-        except ImportError as e:
-            logger.error(f"Missing dependencies for local model: {e}")
-            raise AppException(
-                status_code=500,
-                detail="Missing dependencies: onnxruntime or transformers not installed"
-            )
-        except Exception as e:
-            logger.error(f"Failed to initialize local model: {e}")
-            raise AppException(
-                status_code=500,
-                detail=f"Failed to initialize local model: {str(e)}"
-            )
+        self._client = None
     
-    def _predict_local(self, text: str, max_length: int = 128) -> Dict[str, any]:
-        """
-        Prediksi emosi menggunakan model lokal.
-        
-        Args:
-            text: Teks lirik lagu
-            max_length: Panjang maksimum token
+    def _get_client(self) -> httpx.AsyncClient:
+        """Lazy load HTTP client."""
+        if self._client is None:
+            # Use settings from pydantic which properly loads .env
+            token = settings.token_hf
+            model_id = settings.repository_id
             
-        Returns:
-            Dict dengan emotion dan confidence
-        """
-        # Pastikan model sudah di-load
-        self._initialize_local_model()
-        
-        # Tokenize input
-        inputs = self._tokenizer(
-            text,
-            return_tensors="np",
-            truncation=True,
-            padding="max_length",
-            max_length=max_length
-        )
-        
-        # Jalankan inference
-        input_feed = {
-            "input_ids": inputs["input_ids"].astype(np.int64),
-            "attention_mask": inputs["attention_mask"].astype(np.int64),
-        }
-        
-        # Cek apakah model membutuhkan token_type_ids
-        input_names = [inp.name for inp in self._session.get_inputs()]
-        if "token_type_ids" in input_names:
-            input_feed["token_type_ids"] = inputs.get(
-                "token_type_ids", 
-                np.zeros_like(inputs["input_ids"])
-            ).astype(np.int64)
-        
-        # Jalankan inference
-        outputs = self._session.run(None, input_feed)
-        logits = outputs[0][0]  # Ambil output pertama
-        
-        # Apply softmax untuk mendapatkan probabilitas
-        exp_logits = np.exp(logits - np.max(logits))
-        probabilities = exp_logits / exp_logits.sum()
-        
-        # Ambil emosi dengan confidence tertinggi
-        top_idx = np.argmax(probabilities)
-        emotion = EMOTION_LABELS[top_idx] if top_idx < len(EMOTION_LABELS) else "unknown"
-        confidence = float(probabilities[top_idx])
+            headers = {"Content-Type": "application/json"}
+            
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+                logger.info(f"Using HuggingFace token for authentication (token starts with: {token[:10]}...)")
+            else:
+                logger.warning("TOKEN_HF not set in .env file. API calls may fail for private models.")
+            
+            self._client = httpx.AsyncClient(headers=headers, timeout=60.0)
+            logger.info(f"Initialized HTTP Client for model: {model_id}")
         
         # Buat dict semua emosi
         all_emotions = {}
@@ -190,12 +106,31 @@ class EmotionService:
         Returns:
             Dict dengan emotion dan confidence
         """
-        # Cek apakah dalam mode maintenance
-        if settings.emotion_service_maintenance:
-            logger.warning("Emotion service is in maintenance mode")
-            raise AppException(
-                status_code=503,
-                detail="Emotion detection service is currently under maintenance. Please try again later."
+        try:
+            client = self._get_client()
+            
+            model_id = settings.repository_id
+            api_url = f"https://router.huggingface.co/hf-inference/models/{model_id}"
+            logger.info(f"Calling HuggingFace Inference API: {api_url}")
+            
+            # Truncate text to prevent exceeding model's max token limit (512 tokens)
+            # Using very conservative limit: 500 chars ≈ 125 tokens for safety
+            # 
+            # TODO: Ketika menggunakan model TinoIf/lme-emotion yang sudah di-deploy,
+            #       bisa hapus/ubah limit ini jika model mendukung input lebih panjang
+            max_chars = 500
+            original_len = len(text)
+            truncated_text = text[:max_chars] if original_len > max_chars else text
+            logger.info(f"Input text length: {original_len} chars, sending: {len(truncated_text)} chars")
+            
+            # Call HuggingFace Inference API for text classification
+            # wait_for_model: True untuk serverless - akan menunggu model loading
+            response = await client.post(
+                api_url,
+                json={
+                    "inputs": truncated_text,
+                    "options": {"wait_for_model": True}
+                }
             )
         
         # Cek apakah menggunakan model lokal
