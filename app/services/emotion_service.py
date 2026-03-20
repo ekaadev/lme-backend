@@ -94,11 +94,7 @@ class EmotionService:
             api_url = f"https://router.huggingface.co/hf-inference/models/{model_id}"
             logger.info(f"Calling HuggingFace Inference API: {api_url}")
             
-            # Truncate text to prevent exceeding model's max token limit (512 tokens)
-            # Using very conservative limit: 500 chars ≈ 125 tokens for safety
-            # 
-            # TODO: Ketika menggunakan model TinoIf/lme-emotion yang sudah di-deploy,
-            #       bisa hapus/ubah limit ini jika model mendukung input lebih panjang
+            
             max_chars = 500
             original_len = len(text)
             truncated_text = text[:max_chars] if original_len > max_chars else text

@@ -63,7 +63,7 @@ async def login(
     response: Response,
     data: LoginRequest,
     db: AsyncSession = Depends(get_db),
-):
+)
     """
     Login user dan set JWT cookie.
     """

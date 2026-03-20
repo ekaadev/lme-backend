@@ -49,8 +49,7 @@ class InterpretationService:
         # Predict emotion
         emotion_result = await emotion_service.predict_emotion(lyrics)
         
-        # TODO: Interpretasi menggunakan model ML (placeholder)
-        # Model interpretasi masih dalam pengembangan
+        # TODO: Interpretasi menggunakan model DL
         interpretation = self._generate_placeholder_interpretation(
             song_title, song_artist, emotion_result["emotion"]
         )
